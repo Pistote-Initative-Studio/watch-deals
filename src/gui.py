@@ -6,7 +6,7 @@ from ebay_api import fetch_listings
 from excel_exporter import export_to_excel
 
 
-def fetch_from_gui():
+def on_fetch_click():
     brand = brand_entry.get().strip()
     model = model_entry.get().strip()
     min_price = min_price_entry.get().strip()
@@ -17,50 +17,105 @@ def fetch_from_gui():
     exclude = exclude_entry.get().strip()
     entries = result_var.get()
 
-    kwargs = {"entries": entries}
+    if not brand:
+        messagebox.showerror("Error", "Brand is required")
+        return
+
+    keywords = f"{brand}"
     if model:
-        kwargs["model_keywords"] = model
-    if min_price:
-        try:
-            kwargs["min_price"] = float(min_price)
-        except ValueError:
-            messagebox.showerror("Error", "Invalid min price")
-            return
+        keywords += f" {model}"
+    keywords += " watch"
+    if exclude:
+        for word in exclude.split(","):
+            w = word.strip()
+            if w:
+                keywords += f" -{w}"
+
+    params = {
+        "keywords": keywords,
+        "paginationInput.entriesPerPage": entries,
+    }
+
+    item_filters = []
     if max_price:
         try:
-            kwargs["max_price"] = float(max_price)
+            item_filters.append(
+                {
+                    "name": "MaxPrice",
+                    "value": str(float(max_price)),
+                    "paramName": "Currency",
+                    "paramValue": "USD",
+                }
+            )
         except ValueError:
             messagebox.showerror("Error", "Invalid max price")
             return
-    if condition != "Any":
-        kwargs["condition"] = condition
-    if listing_type != "Both":
-        kwargs["listing_type"] = listing_type
+    if min_price:
+        try:
+            item_filters.append(
+                {
+                    "name": "MinPrice",
+                    "value": str(float(min_price)),
+                    "paramName": "Currency",
+                    "paramValue": "USD",
+                }
+            )
+        except ValueError:
+            messagebox.showerror("Error", "Invalid min price")
+            return
+    if condition in {"New", "Used"}:
+        condition_code = {"New": "1000", "Used": "3000"}[condition]
+        item_filters.append({"name": "Condition", "value": condition_code})
+    if listing_type in {"Auction", "BIN"}:
+        lt_value = "Auction" if listing_type == "Auction" else "FixedPrice"
+        item_filters.append({"name": "ListingType", "value": lt_value})
     if time_left != "Any":
-        kwargs["max_time_left"] = int(time_left.replace("h", ""))
-    if exclude:
-        kwargs["exclude_keywords"] = exclude
+        try:
+            hours = int(time_left.replace("h", ""))
+            item_filters.append({"name": "MaxTimeLeft", "value": f"PT{hours}H"})
+        except ValueError:
+            pass
+
+    for idx, fil in enumerate(item_filters):
+        params[f"itemFilter({idx}).name"] = fil["name"]
+        params[f"itemFilter({idx}).value"] = fil["value"]
+        if "paramName" in fil:
+            params[f"itemFilter({idx}).paramName"] = fil["paramName"]
+        if "paramValue" in fil:
+            params[f"itemFilter({idx}).paramValue"] = fil["paramValue"]
 
     try:
-        listings = fetch_listings(brand, **kwargs)
+        data = fetch_listings(params)
     except Exception as exc:
         messagebox.showerror("Error", str(exc))
         return
 
-    df = pd.DataFrame(listings)
-    if not df.empty:
-        df.rename(
-            columns={
-                "title": "Title",
-                "price": "Price",
-                "url": "URL",
-                "end_time": "End Time",
-            },
-            inplace=True,
-        )
-    else:
-        df = pd.DataFrame(columns=["Title", "Price", "URL", "End Time"])
+    items = (
+        data.get("findItemsByKeywordsResponse", [{}])[0]
+        .get("searchResult", [{}])[0]
+        .get("item", [])
+    )
 
+    listings = []
+    for item in items:
+        title = item.get("title", [""])[0]
+        price = (
+            item.get("sellingStatus", [{}])[0]
+            .get("currentPrice", [{}])[0]
+            .get("__value__")
+        )
+        url = item.get("viewItemURL", [""])[0]
+        end_time = item.get("listingInfo", [{}])[0].get("endTime", [""])[0]
+        listings.append(
+            {
+                "Title": title,
+                "Price": float(price) if price is not None else None,
+                "URL": url,
+                "End Time": end_time,
+            }
+        )
+
+    df = pd.DataFrame(listings, columns=["Title", "Price", "URL", "End Time"])
     export_to_excel(df)
     messagebox.showinfo("Success", f"Exported {len(df)} listings to listings.xlsx")
 
@@ -118,7 +173,7 @@ result_scale = tk.Scale(root, from_=10, to=100, orient=tk.HORIZONTAL, variable=r
 result_scale.grid(row=8, column=1, sticky="ew")
 
 # Fetch button
-fetch_button = tk.Button(root, text="Fetch Listings", command=fetch_from_gui)
+fetch_button = tk.Button(root, text="Fetch Listings", command=on_fetch_click)
 fetch_button.grid(row=9, column=0, columnspan=2, pady=10)
 
 if __name__ == "__main__":
