@@ -91,8 +91,16 @@ def fetch_listings(
     for idx, fil in enumerate(filters):
         for key, value in fil.items():
             query_params[f"itemFilter({idx}).{key}"] = value
+    # ``requests`` will percent-encode parentheses in the ``itemFilter`` keys
+    # which the eBay Finding API does not accept.  Build a prepared request
+    # and then replace the encoded characters so the original parentheses are
+    # preserved without manually assembling the query string.
+    session = requests.Session()
+    req = requests.Request("GET", EBAY_FINDING_URL, params=query_params)
+    prepared = session.prepare_request(req)
+    prepared.url = prepared.url.replace("%28", "(").replace("%29", ")")
 
-    response = requests.get(EBAY_FINDING_URL, params=query_params, timeout=10)
+    response = session.send(prepared, timeout=10)
     response.raise_for_status()
     return response.json()
 
