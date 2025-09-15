@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Optional
 
 import requests
+from urllib.parse import urlencode
 
 from config import EBAY_APP_ID
 
@@ -53,6 +54,9 @@ def fetch_listings(
     # Ensure required operation is included in the request parameters
     params["OPERATION-NAME"] = "findItemsAdvanced"
 
+    # Encode params while keeping parentheses in ``itemFilter`` keys unescaped
+    query = urlencode(params, doseq=True, safe="()")
+
     headers = {
         "X-EBAY-SOA-SECURITY-APPNAME": EBAY_APP_ID,
         "X-EBAY-SOA-OPERATION-NAME": "findItemsAdvanced",
@@ -60,7 +64,7 @@ def fetch_listings(
     }
 
     response = requests.get(
-        EBAY_FINDING_URL, headers=headers, params=params, timeout=10
+        EBAY_FINDING_URL, headers=headers, params=query, timeout=10
     )
     response.raise_for_status()
     return response.json()
