@@ -6,7 +6,8 @@ import requests
 
 from config import EBAY_APP_ID
 
-FINDING_API_ENDPOINT = "https://svcs.ebay.com/services/search/FindingService/v1"
+# Base endpoint for the eBay Finding API
+EBAY_FINDING_URL = "https://svcs.ebay.com/services/search/FindingService/v1"
 
 
 def fetch_listings(
@@ -49,14 +50,17 @@ def fetch_listings(
         if "paramValue" in fil:
             params[f"itemFilter({idx}).paramValue"] = fil["paramValue"]
 
+    # Ensure required operation is included in the request parameters
+    params["OPERATION-NAME"] = "findItemsAdvanced"
+
     headers = {
         "X-EBAY-SOA-SECURITY-APPNAME": EBAY_APP_ID,
-        "X-EBAY-SOA-OPERATION-NAME": "findItemsByKeywords",
+        "X-EBAY-SOA-OPERATION-NAME": "findItemsAdvanced",
         "X-EBAY-SOA-RESPONSE-DATA-FORMAT": "JSON",
     }
 
     response = requests.get(
-        FINDING_API_ENDPOINT, headers=headers, params=params, timeout=10
+        EBAY_FINDING_URL, headers=headers, params=params, timeout=10
     )
     response.raise_for_status()
     return response.json()
