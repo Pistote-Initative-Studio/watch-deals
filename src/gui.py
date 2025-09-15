@@ -7,25 +7,25 @@ from excel_exporter import export_to_excel
 
 # Mapping of display labels to official eBay codes/values
 CONDITION_OPTIONS = {
-    "New (1000)": "1000",
-    "New other (see details) (1500)": "1500",
-    "Manufacturer refurbished (2000)": "2000",
-    "Seller refurbished (2500)": "2500",
-    "Used (3000)": "3000",
-    "For parts or not working (7000)": "7000",
+    "New": "1000",
+    "Like New": "1500",
+    "Used": "3000",
+    "For Parts": "7000",
 }
 
 LISTING_TYPE_OPTIONS = {
     "Auction": "Auction",
-    "FixedPrice": "FixedPrice",
-    "AuctionWithBIN": "AuctionWithBIN",
+    "Auction with BIN": "AuctionWithBIN",
+    "Fixed Price": "FixedPrice",
+    "Classified": "Classified",
 }
 
 MAX_TIME_LEFT_OPTIONS = {
-    "1hr": "PT1H",
-    "1day": "P1D",
-    "5days": "P5D",
-    "10days": "P10D",
+    "1 Hour": "PT1H",
+    "12 Hours": "PT12H",
+    "1 Day": "P1D",
+    "3 Days": "P3D",
+    "5 Days": "P5D",
 }
 
 
@@ -34,6 +34,7 @@ def build_item_filters(
     max_price: float | None = None,
     condition: str | None = None,
     listing_type: str | None = None,
+    max_time_left: str | None = None,
 ) -> list[dict[str, str]]:
     """Construct item filters for the eBay Finding API.
 
@@ -48,6 +49,9 @@ def build_item_filters(
 
     if listing_type:
         filters.append({"name": "ListingType", "value": listing_type})
+
+    if max_time_left:
+        filters.append({"name": "MaxTimeLeft", "value": max_time_left})
 
     if min_price is not None:
         filters.append(
@@ -130,17 +134,15 @@ def on_fetch_click():
 
     condition_code = get_condition_code(condition_var.get())
     listing_value = get_listing_type(listing_type_var.get())
+    max_time_left_value = get_max_time_left(time_left_var.get())
 
     filters = build_item_filters(
         min_price=min_price_val,
         max_price=max_price_val,
         condition=condition_code,
         listing_type=listing_value,
+        max_time_left=max_time_left_value,
     )
-
-    max_time_left_value = get_max_time_left(time_left_var.get())
-    if max_time_left_value:
-        filters.append({"name": "MaxTimeLeft", "value": max_time_left_value})
 
     try:
         data = fetch_listings(params, item_filters=filters)
