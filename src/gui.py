@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 import pandas as pd
 
 from ebay_api import fetch_listings
@@ -7,21 +7,41 @@ from excel_exporter import export_to_excel
 
 # Mapping of display labels to official eBay codes/values
 CONDITION_OPTIONS = {
-    "Any": "",
-    "New": "1000",
-    "New other (see details)": "1500",
-    "Manufacturer refurbished": "2000",
-    "Seller refurbished": "2500",
-    "Used": "3000",
-    "For parts or not working": "7000",
+    "Any": None,
+    "New (1000)": "1000",
+    "New other (see details) (1500)": "1500",
+    "Manufacturer refurbished (2000)": "2000",
+    "Seller refurbished (2500)": "2500",
+    "Used (3000)": "3000",
+    "For parts or not working (7000)": "7000",
 }
 
 LISTING_TYPE_OPTIONS = {
-    "Both": None,
+    "Any": None,
     "Auction": "Auction",
-    "Fixed Price": "FixedPrice",
-    "Auction with BIN": "AuctionWithBIN",
+    "FixedPrice": "FixedPrice",
+    "AuctionWithBIN": "AuctionWithBIN",
 }
+
+MAX_TIME_LEFT_OPTIONS = {
+    "Any": None,
+    "1 hour": "PT1H",
+    "1 day": "P1D",
+    "5 days": "P5D",
+    "10 days": "P10D",
+}
+
+
+def get_condition_code(selection: str | None) -> str | None:
+    return CONDITION_OPTIONS.get(selection or "")
+
+
+def get_listing_type(selection: str | None) -> str | None:
+    return LISTING_TYPE_OPTIONS.get(selection or "")
+
+
+def get_max_time_left(selection: str | None) -> str | None:
+    return MAX_TIME_LEFT_OPTIONS.get(selection or "")
 
 
 def on_fetch_click():
@@ -29,9 +49,6 @@ def on_fetch_click():
     model = model_entry.get().strip()
     min_price = min_price_entry.get().strip()
     max_price = max_price_entry.get().strip()
-    condition = condition_var.get()
-    listing_type = listing_type_var.get()
-    time_left = time_left_var.get()
     exclude = exclude_entry.get().strip()
     entries = result_var.get()
 
@@ -81,18 +98,15 @@ def on_fetch_click():
         except ValueError:
             messagebox.showerror("Error", "Invalid min price")
             return
-    condition_code = CONDITION_OPTIONS.get(condition, "")
+    condition_code = get_condition_code(condition_var.get())
     if condition_code:
         item_filters.append({"name": "Condition", "value": condition_code})
-    listing_value = LISTING_TYPE_OPTIONS.get(listing_type)
+    listing_value = get_listing_type(listing_type_var.get())
     if listing_value:
         item_filters.append({"name": "ListingType", "value": listing_value})
-    if time_left != "Any":
-        try:
-            hours = int(time_left.replace("h", ""))
-            item_filters.append({"name": "MaxTimeLeft", "value": f"PT{hours}H"})
-        except ValueError:
-            pass
+    max_time_left_value = get_max_time_left(time_left_var.get())
+    if max_time_left_value:
+        item_filters.append({"name": "MaxTimeLeft", "value": max_time_left_value})
 
     try:
         data = fetch_listings(params, item_filters)
@@ -156,19 +170,25 @@ max_price_entry.grid(row=3, column=1)
 # Condition
 tk.Label(root, text="Condition").grid(row=4, column=0, sticky="w")
 condition_var = tk.StringVar(value="Any")
-condition_menu = tk.OptionMenu(root, condition_var, *CONDITION_OPTIONS.keys())
+condition_menu = ttk.Combobox(root, textvariable=condition_var, state="readonly")
+condition_menu["values"] = list(CONDITION_OPTIONS.keys())
+condition_menu.current(0)
 condition_menu.grid(row=4, column=1, sticky="ew")
 
 # Listing type
 tk.Label(root, text="Listing Type").grid(row=5, column=0, sticky="w")
-listing_type_var = tk.StringVar(value="Both")
-listing_type_menu = tk.OptionMenu(root, listing_type_var, *LISTING_TYPE_OPTIONS.keys())
+listing_type_var = tk.StringVar(value="Any")
+listing_type_menu = ttk.Combobox(root, textvariable=listing_type_var, state="readonly")
+listing_type_menu["values"] = list(LISTING_TYPE_OPTIONS.keys())
+listing_type_menu.current(0)
 listing_type_menu.grid(row=5, column=1, sticky="ew")
 
 # Time left
 tk.Label(root, text="Max Time Left").grid(row=6, column=0, sticky="w")
 time_left_var = tk.StringVar(value="Any")
-time_left_menu = tk.OptionMenu(root, time_left_var, "Any", "24h", "48h")
+time_left_menu = ttk.Combobox(root, textvariable=time_left_var, state="readonly")
+time_left_menu["values"] = list(MAX_TIME_LEFT_OPTIONS.keys())
+time_left_menu.current(0)
 time_left_menu.grid(row=6, column=1, sticky="ew")
 
 # Exclude keywords
