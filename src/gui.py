@@ -29,6 +29,49 @@ MAX_TIME_LEFT_OPTIONS = {
 }
 
 
+def build_item_filters(
+    min_price: float | None = None,
+    max_price: float | None = None,
+    condition: str | None = None,
+    listing_type: str | None = None,
+) -> list[dict[str, str]]:
+    """Construct item filters for the eBay Finding API.
+
+    Parameters are optional and only provided filters will be included.
+    Currency for price filters is always USD.
+    """
+
+    filters: list[dict[str, str]] = []
+
+    if condition:
+        filters.append({"name": "Condition", "value": condition})
+
+    if listing_type:
+        filters.append({"name": "ListingType", "value": listing_type})
+
+    if min_price is not None:
+        filters.append(
+            {
+                "name": "MinPrice",
+                "value": str(min_price),
+                "paramName": "Currency",
+                "paramValue": "USD",
+            }
+        )
+
+    if max_price is not None:
+        filters.append(
+            {
+                "name": "MaxPrice",
+                "value": str(max_price),
+                "paramName": "Currency",
+                "paramValue": "USD",
+            }
+        )
+
+    return filters
+
+
 def get_condition_code(selection: str | None) -> str | None:
     return CONDITION_OPTIONS.get(selection)
 
@@ -68,45 +111,47 @@ def on_fetch_click():
         "paginationInput.entriesPerPage": entries,
     }
 
-    item_filters = []
-    if max_price:
-        try:
-            item_filters.append(
-                {
-                    "name": "MaxPrice",
-                    "value": str(float(max_price)),
-                    "paramName": "Currency",
-                    "paramValue": "USD",
-                }
-            )
-        except ValueError:
-            messagebox.showerror("Error", "Invalid max price")
-            return
+    # Validate numeric inputs before building filters
+    min_price_val = None
     if min_price:
         try:
-            item_filters.append(
-                {
-                    "name": "MinPrice",
-                    "value": str(float(min_price)),
-                    "paramName": "Currency",
-                    "paramValue": "USD",
-                }
-            )
+            min_price_val = float(min_price)
         except ValueError:
             messagebox.showerror("Error", "Invalid min price")
             return
+
+    max_price_val = None
+    if max_price:
+        try:
+            max_price_val = float(max_price)
+        except ValueError:
+            messagebox.showerror("Error", "Invalid max price")
+            return
+
     condition_code = get_condition_code(condition_var.get())
-    if condition_code:
-        item_filters.append({"name": "Condition", "value": condition_code})
     listing_value = get_listing_type(listing_type_var.get())
-    if listing_value:
-        item_filters.append({"name": "ListingType", "value": listing_value})
+
+    filters = build_item_filters(
+        min_price=min_price_val,
+        max_price=max_price_val,
+        condition=condition_code,
+        listing_type=listing_value,
+    )
+
     max_time_left_value = get_max_time_left(time_left_var.get())
     if max_time_left_value:
-        item_filters.append({"name": "MaxTimeLeft", "value": max_time_left_value})
+        filters.append({"name": "MaxTimeLeft", "value": max_time_left_value})
+
+    for idx, fil in enumerate(filters):
+        params[f"itemFilter({idx}).name"] = fil["name"]
+        params[f"itemFilter({idx}).value"] = fil["value"]
+        if fil.get("paramName"):
+            params[f"itemFilter({idx}).paramName"] = fil["paramName"]
+        if fil.get("paramValue"):
+            params[f"itemFilter({idx}).paramValue"] = fil["paramValue"]
 
     try:
-        data = fetch_listings(params, item_filters)
+        data = fetch_listings(params)
     except Exception as exc:
         messagebox.showerror("Error", str(exc))
         return
