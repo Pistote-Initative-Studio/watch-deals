@@ -1,6 +1,5 @@
 """Wrapper for interacting with the eBay Finding API."""
 
-from collections import OrderedDict
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -9,6 +8,41 @@ from config import EBAY_APP_ID
 
 # Base endpoint for the eBay Finding API
 EBAY_FINDING_URL = "https://svcs.ebay.com/services/search/FindingService/v1"
+
+
+def _build_filter_entry(fil: Dict[str, str]) -> Optional[Dict[str, str]]:
+    """Validate and normalise a single item filter entry.
+
+    Parameters
+    ----------
+    fil : Dict[str, str]
+        Raw filter dictionary supplied by the GUI or caller.
+
+    Returns
+    -------
+    Optional[Dict[str, str]]
+        Cleaned filter entry or ``None`` if the filter should be skipped.
+    """
+
+    name = fil.get("name")
+    value = fil.get("value")
+
+    # Skip unset or "Any" selections
+    if not name or value in (None, "", "Any"):
+        return None
+
+    entry: Dict[str, str] = {"name": name, "value": str(value)}
+
+    # Ensure currency is always provided for price filters
+    if name in {"MinPrice", "MaxPrice"}:
+        entry.setdefault("paramName", "Currency")
+        entry.setdefault("paramValue", "USD")
+
+    if fil.get("paramName") and fil.get("paramValue"):
+        entry["paramName"] = fil["paramName"]
+        entry["paramValue"] = fil["paramValue"]
+
+    return entry
 
 
 def fetch_listings(
@@ -23,8 +57,8 @@ def fetch_listings(
     params : Dict[str, Any]
         Base query parameters such as keywords and pagination limits.
     item_filters : Optional[List[Dict[str, str]]]
-        Item filter dictionaries from the GUI. ``paramName``/``paramValue``
-        entries (e.g. ``Currency``) are collected and added exactly once.
+        Item filter dictionaries from the GUI. Each filter is flattened into
+        ``itemFilter(n)`` groups as required by the eBay Finding API.
     listing_type : Optional[str]
         eBay listing type to include as an ``itemFilter`` entry.
 
@@ -43,27 +77,20 @@ def fetch_listings(
     }
     query_params.update(params)
 
-    filters: "OrderedDict[str, str]" = OrderedDict()
-    currency: Optional[str] = None
+    filters: List[Dict[str, str]] = []
 
     for fil in item_filters or []:
-        name = fil.get("name")
-        value = fil.get("value")
-        if not name or value in (None, ""):
-            continue
-        filters[name] = value
-        if fil.get("paramName") == "Currency" and fil.get("paramValue"):
-            currency = fil["paramValue"]
+        cleaned = _build_filter_entry(fil)
+        if cleaned:
+            filters.append(cleaned)
 
     if listing_type:
-        filters["ListingType"] = listing_type
+        filters.append({"name": "ListingType", "value": listing_type})
 
-    if currency and "Currency" not in filters:
-        filters["Currency"] = currency
-
-    for idx, (name, value) in enumerate(filters.items()):
-        query_params[f"itemFilter({idx}).name"] = name
-        query_params[f"itemFilter({idx}).value"] = value
+    # Flatten into indexed itemFilter(n) query parameters
+    for idx, fil in enumerate(filters):
+        for key, value in fil.items():
+            query_params[f"itemFilter({idx}).{key}"] = value
 
     response = requests.get(EBAY_FINDING_URL, params=query_params, timeout=10)
     response.raise_for_status()

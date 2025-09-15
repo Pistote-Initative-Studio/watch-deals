@@ -142,16 +142,8 @@ def on_fetch_click():
     if max_time_left_value:
         filters.append({"name": "MaxTimeLeft", "value": max_time_left_value})
 
-    for idx, fil in enumerate(filters):
-        params[f"itemFilter({idx}).name"] = fil["name"]
-        params[f"itemFilter({idx}).value"] = fil["value"]
-        if fil.get("paramName"):
-            params[f"itemFilter({idx}).paramName"] = fil["paramName"]
-        if fil.get("paramValue"):
-            params[f"itemFilter({idx}).paramValue"] = fil["paramValue"]
-
     try:
-        data = fetch_listings(params)
+        data = fetch_listings(params, item_filters=filters)
     except Exception as exc:
         messagebox.showerror("Error", str(exc))
         return
