@@ -5,6 +5,24 @@ import pandas as pd
 from ebay_api import fetch_listings
 from excel_exporter import export_to_excel
 
+# Mapping of display labels to official eBay codes/values
+CONDITION_OPTIONS = {
+    "Any": "",
+    "New": "1000",
+    "New other (see details)": "1500",
+    "Manufacturer refurbished": "2000",
+    "Seller refurbished": "2500",
+    "Used": "3000",
+    "For parts or not working": "7000",
+}
+
+LISTING_TYPE_OPTIONS = {
+    "Both": None,
+    "Auction": "Auction",
+    "Fixed Price": "FixedPrice",
+    "Auction with BIN": "AuctionWithBIN",
+}
+
 
 def on_fetch_click():
     brand = brand_entry.get().strip()
@@ -63,12 +81,12 @@ def on_fetch_click():
         except ValueError:
             messagebox.showerror("Error", "Invalid min price")
             return
-    if condition in {"New", "Used"}:
-        condition_code = {"New": "1000", "Used": "3000"}[condition]
+    condition_code = CONDITION_OPTIONS.get(condition, "")
+    if condition_code:
         item_filters.append({"name": "Condition", "value": condition_code})
-    if listing_type in {"Auction", "BIN"}:
-        lt_value = "Auction" if listing_type == "Auction" else "FixedPrice"
-        item_filters.append({"name": "ListingType", "value": lt_value})
+    listing_value = LISTING_TYPE_OPTIONS.get(listing_type)
+    if listing_value:
+        item_filters.append({"name": "ListingType", "value": listing_value})
     if time_left != "Any":
         try:
             hours = int(time_left.replace("h", ""))
@@ -76,16 +94,8 @@ def on_fetch_click():
         except ValueError:
             pass
 
-    for idx, fil in enumerate(item_filters):
-        params[f"itemFilter({idx}).name"] = fil["name"]
-        params[f"itemFilter({idx}).value"] = fil["value"]
-        if "paramName" in fil:
-            params[f"itemFilter({idx}).paramName"] = fil["paramName"]
-        if "paramValue" in fil:
-            params[f"itemFilter({idx}).paramValue"] = fil["paramValue"]
-
     try:
-        data = fetch_listings(params)
+        data = fetch_listings(params, item_filters)
     except Exception as exc:
         messagebox.showerror("Error", str(exc))
         return
@@ -146,13 +156,13 @@ max_price_entry.grid(row=3, column=1)
 # Condition
 tk.Label(root, text="Condition").grid(row=4, column=0, sticky="w")
 condition_var = tk.StringVar(value="Any")
-condition_menu = tk.OptionMenu(root, condition_var, "Any", "New", "Used")
+condition_menu = tk.OptionMenu(root, condition_var, *CONDITION_OPTIONS.keys())
 condition_menu.grid(row=4, column=1, sticky="ew")
 
 # Listing type
 tk.Label(root, text="Listing Type").grid(row=5, column=0, sticky="w")
 listing_type_var = tk.StringVar(value="Both")
-listing_type_menu = tk.OptionMenu(root, listing_type_var, "Auction", "BIN", "Both")
+listing_type_menu = tk.OptionMenu(root, listing_type_var, *LISTING_TYPE_OPTIONS.keys())
 listing_type_menu.grid(row=5, column=1, sticky="ew")
 
 # Time left
