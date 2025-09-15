@@ -7,7 +7,6 @@ from excel_exporter import export_to_excel
 
 # Mapping of display labels to official eBay codes/values
 CONDITION_OPTIONS = {
-    "Any": None,
     "New (1000)": "1000",
     "New other (see details) (1500)": "1500",
     "Manufacturer refurbished (2000)": "2000",
@@ -17,31 +16,29 @@ CONDITION_OPTIONS = {
 }
 
 LISTING_TYPE_OPTIONS = {
-    "Any": None,
     "Auction": "Auction",
     "FixedPrice": "FixedPrice",
     "AuctionWithBIN": "AuctionWithBIN",
 }
 
 MAX_TIME_LEFT_OPTIONS = {
-    "Any": None,
-    "1 hour": "PT1H",
-    "1 day": "P1D",
-    "5 days": "P5D",
-    "10 days": "P10D",
+    "1hr": "PT1H",
+    "1day": "P1D",
+    "5days": "P5D",
+    "10days": "P10D",
 }
 
 
 def get_condition_code(selection: str | None) -> str | None:
-    return CONDITION_OPTIONS.get(selection or "")
+    return CONDITION_OPTIONS.get(selection)
 
 
 def get_listing_type(selection: str | None) -> str | None:
-    return LISTING_TYPE_OPTIONS.get(selection or "")
+    return LISTING_TYPE_OPTIONS.get(selection)
 
 
 def get_max_time_left(selection: str | None) -> str | None:
-    return MAX_TIME_LEFT_OPTIONS.get(selection or "")
+    return MAX_TIME_LEFT_OPTIONS.get(selection)
 
 
 def on_fetch_click():
@@ -169,27 +166,24 @@ max_price_entry.grid(row=3, column=1)
 
 # Condition
 tk.Label(root, text="Condition").grid(row=4, column=0, sticky="w")
-condition_var = tk.StringVar(value="Any")
-condition_menu = ttk.Combobox(root, textvariable=condition_var, state="readonly")
-condition_menu["values"] = list(CONDITION_OPTIONS.keys())
-condition_menu.current(0)
-condition_menu.grid(row=4, column=1, sticky="ew")
+condition_var = tk.StringVar()
+condition_combo = ttk.Combobox(root, textvariable=condition_var, state="readonly")
+condition_combo["values"] = list(CONDITION_OPTIONS.keys())
+condition_combo.grid(row=4, column=1, sticky="ew")
 
 # Listing type
 tk.Label(root, text="Listing Type").grid(row=5, column=0, sticky="w")
-listing_type_var = tk.StringVar(value="Any")
-listing_type_menu = ttk.Combobox(root, textvariable=listing_type_var, state="readonly")
-listing_type_menu["values"] = list(LISTING_TYPE_OPTIONS.keys())
-listing_type_menu.current(0)
-listing_type_menu.grid(row=5, column=1, sticky="ew")
+listing_type_var = tk.StringVar()
+listing_type_combo = ttk.Combobox(root, textvariable=listing_type_var, state="readonly")
+listing_type_combo["values"] = list(LISTING_TYPE_OPTIONS.keys())
+listing_type_combo.grid(row=5, column=1, sticky="ew")
 
 # Time left
 tk.Label(root, text="Max Time Left").grid(row=6, column=0, sticky="w")
-time_left_var = tk.StringVar(value="Any")
-time_left_menu = ttk.Combobox(root, textvariable=time_left_var, state="readonly")
-time_left_menu["values"] = list(MAX_TIME_LEFT_OPTIONS.keys())
-time_left_menu.current(0)
-time_left_menu.grid(row=6, column=1, sticky="ew")
+time_left_var = tk.StringVar()
+time_left_combo = ttk.Combobox(root, textvariable=time_left_var, state="readonly")
+time_left_combo["values"] = list(MAX_TIME_LEFT_OPTIONS.keys())
+time_left_combo.grid(row=6, column=1, sticky="ew")
 
 # Exclude keywords
 tk.Label(root, text="Exclude Keywords").grid(row=7, column=0, sticky="w")
