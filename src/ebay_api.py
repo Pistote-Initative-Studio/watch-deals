@@ -1,9 +1,9 @@
 """Wrapper for interacting with the eBay Finding API."""
 
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional
 
 import requests
-from urllib.parse import urlencode
 
 from config import EBAY_APP_ID
 
@@ -21,10 +21,10 @@ def fetch_listings(
     Parameters
     ----------
     params : Dict[str, Any]
-        Query parameters to send with the request.
+        Base query parameters such as keywords and pagination limits.
     item_filters : Optional[List[Dict[str, str]]]
-        List of item filter dictionaries (``name``/``value`` pairs and optional
-        ``paramName``/``paramValue``) to be inserted into the request.
+        Item filter dictionaries from the GUI. ``paramName``/``paramValue``
+        entries (e.g. ``Currency``) are collected and added exactly once.
     listing_type : Optional[str]
         eBay listing type to include as an ``itemFilter`` entry.
 
@@ -34,38 +34,38 @@ def fetch_listings(
         Parsed JSON response from the API.
     """
 
-    if item_filters is None:
-        item_filters = []
-    else:
-        # Copy to avoid mutating the caller's list when appending filters.
-        item_filters = list(item_filters)
+    # Required parameters for all requests
+    query_params: Dict[str, Any] = {
+        "OPERATION-NAME": "findItemsAdvanced",
+        "SERVICE-VERSION": "1.0.0",
+        "SECURITY-APPNAME": EBAY_APP_ID,
+        "RESPONSE-DATA-FORMAT": "JSON",
+    }
+    query_params.update(params)
+
+    filters: "OrderedDict[str, str]" = OrderedDict()
+    currency: Optional[str] = None
+
+    for fil in item_filters or []:
+        name = fil.get("name")
+        value = fil.get("value")
+        if not name or value in (None, ""):
+            continue
+        filters[name] = value
+        if fil.get("paramName") == "Currency" and fil.get("paramValue"):
+            currency = fil["paramValue"]
 
     if listing_type:
-        item_filters.append({"name": "ListingType", "value": listing_type})
+        filters["ListingType"] = listing_type
 
-    for idx, fil in enumerate(item_filters):
-        params[f"itemFilter({idx}).name"] = fil["name"]
-        params[f"itemFilter({idx}).value"] = fil["value"]
-        if "paramName" in fil:
-            params[f"itemFilter({idx}).paramName"] = fil["paramName"]
-        if "paramValue" in fil:
-            params[f"itemFilter({idx}).paramValue"] = fil["paramValue"]
+    if currency and "Currency" not in filters:
+        filters["Currency"] = currency
 
-    # Ensure required operation is included in the request parameters
-    params["OPERATION-NAME"] = "findItemsAdvanced"
+    for idx, (name, value) in enumerate(filters.items()):
+        query_params[f"itemFilter({idx}).name"] = name
+        query_params[f"itemFilter({idx}).value"] = value
 
-    # Encode params while keeping parentheses in ``itemFilter`` keys unescaped
-    query = urlencode(params, doseq=True, safe="()")
-
-    headers = {
-        "X-EBAY-SOA-SECURITY-APPNAME": EBAY_APP_ID,
-        "X-EBAY-SOA-OPERATION-NAME": "findItemsAdvanced",
-        "X-EBAY-SOA-RESPONSE-DATA-FORMAT": "JSON",
-    }
-
-    response = requests.get(
-        EBAY_FINDING_URL, headers=headers, params=query, timeout=10
-    )
+    response = requests.get(EBAY_FINDING_URL, params=query_params, timeout=10)
     response.raise_for_status()
     return response.json()
 
