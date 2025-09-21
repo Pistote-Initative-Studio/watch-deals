@@ -1,67 +1,30 @@
 """Manual test script that queries the eBay Browse API.
 
-This script replaces the legacy Finding API usage with the modern Browse API
-and authenticates using the OAuth2 client credentials flow.  Provide your eBay
-application credentials via the ``EBAY_CLIENT_ID`` and ``EBAY_CLIENT_SECRET``
-environment variables before running the script::
+This script relies on :func:`config.get_access_token` to obtain an OAuth token
+automatically using the client credentials stored in ``.env``.  To run the
+script make sure the following variables are present in your environment::
 
-    export EBAY_CLIENT_ID="your-client-id"
-    export EBAY_CLIENT_SECRET="your-client-secret"
-    python src/test_raw_request.py watch
+    EBAY_CLIENT_ID="your-client-id"
+    EBAY_CLIENT_SECRET="your-client-secret"
 
-The script prints a summary of the first 10 search results including the title,
-price, and item URL.
+Once configured you can execute ``python src/test_raw_request.py watch`` to
+print a summary of the first 10 search results including the title, price, and
+item URL.
 """
 
 from __future__ import annotations
 
-import os
 import sys
 from typing import Iterable, List
 
 import requests
 
-TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
+from config import get_access_token
+
 BROWSE_SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search"
-# The default scope required for application access tokens when calling the
-# Browse API.
-APPLICATION_SCOPE = "https://api.ebay.com/oauth/api_scope"
 # Sensible defaults to exercise the Browse API in a development environment.
 DEFAULT_KEYWORD = "watch"
 DEFAULT_RESULT_LIMIT = 20
-
-
-class MissingConfigurationError(RuntimeError):
-    """Raised when required environment variables are missing."""
-
-
-def _get_env(name: str) -> str:
-    """Fetch an environment variable or raise an informative error."""
-
-    value = os.getenv(name)
-    if not value:
-        raise MissingConfigurationError(
-            f"Environment variable '{name}' must be set to run the Browse API test."
-        )
-    return value
-
-
-def fetch_access_token(client_id: str, client_secret: str) -> str:
-    """Retrieve an OAuth2 application access token from eBay."""
-
-    response = requests.post(
-        TOKEN_URL,
-        auth=(client_id, client_secret),
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        data={"grant_type": "client_credentials", "scope": APPLICATION_SCOPE},
-        timeout=10,
-    )
-    response.raise_for_status()
-    token_payload = response.json()
-    access_token = token_payload.get("access_token")
-    if not access_token:
-        raise RuntimeError("OAuth token response did not include an access_token")
-    return access_token
 
 
 def search_browse_api(access_token: str, keyword: str, limit: int = DEFAULT_RESULT_LIMIT) -> List[dict]:
@@ -111,11 +74,9 @@ def main() -> None:
     """Entry point for running the Browse API smoke test."""
 
     keyword = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_KEYWORD
-    client_id = _get_env("EBAY_CLIENT_ID")
-    client_secret = _get_env("EBAY_CLIENT_SECRET")
 
-    print(f"Fetching OAuth token for client '{client_id}'...")
-    access_token = fetch_access_token(client_id, client_secret)
+    print("Fetching OAuth token via config.get_access_token()...")
+    access_token = get_access_token()
 
     print(f"Searching Browse API for keyword: {keyword!r}")
     items = search_browse_api(access_token, keyword)
@@ -131,7 +92,7 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except MissingConfigurationError as exc:
+    except EnvironmentError as exc:
         sys.stderr.write(f"Configuration error: {exc}\n")
         sys.exit(1)
     except requests.HTTPError as exc:
