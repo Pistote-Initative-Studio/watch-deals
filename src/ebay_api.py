@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from config import EBAY_APP_ID
+from config import EBAY_APP_ID, get_access_token
 
 # Base endpoint for the eBay Finding API
 EBAY_FINDING_URL = "https://svcs.ebay.com/services/search/FindingService/v1"
@@ -96,7 +96,8 @@ def fetch_listings(
     # and then replace the encoded characters so the original parentheses are
     # preserved without manually assembling the query string.
     session = requests.Session()
-    req = requests.Request("GET", EBAY_FINDING_URL, params=query_params)
+    headers = {"Authorization": f"Bearer {get_access_token()}"}
+    req = requests.Request("GET", EBAY_FINDING_URL, params=query_params, headers=headers)
     prepared = session.prepare_request(req)
     prepared.url = prepared.url.replace("%28", "(").replace("%29", ")")
 
