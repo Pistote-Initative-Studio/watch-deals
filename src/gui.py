@@ -2,8 +2,8 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import pandas as pd
 
-from ebay_api import fetch_listings
-from excel_exporter import export_to_excel
+from .ebay_api import fetch_listings
+from .excel_exporter import export_to_excel
 
 # Mapping of display labels to official eBay codes/values
 CONDITION_OPTIONS = {
