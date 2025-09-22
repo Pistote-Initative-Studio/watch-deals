@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import requests
 
-from config import EBAY_APP_ID, get_access_token
+from .config import EBAY_APP_ID, get_access_token
 
 # Base endpoint for the eBay Finding API
 EBAY_FINDING_URL = "https://svcs.ebay.com/services/search/FindingService/v1"

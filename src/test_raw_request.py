@@ -19,7 +19,7 @@ from typing import Iterable, List
 
 import requests
 
-from config import get_access_token
+from .config import get_access_token
 
 BROWSE_SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search"
 # Sensible defaults to exercise the Browse API in a development environment.

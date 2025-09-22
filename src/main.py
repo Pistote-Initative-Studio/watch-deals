@@ -2,8 +2,8 @@
 
 import pandas as pd
 
-from ebay_api import fetch_listings
-from excel_exporter import export_to_excel
+from .ebay_api import fetch_listings
+from .excel_exporter import export_to_excel
 
 
 def main() -> None:

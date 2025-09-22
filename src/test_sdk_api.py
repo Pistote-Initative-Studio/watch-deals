@@ -1,7 +1,7 @@
 from ebaysdk.finding import Connection as Finding
 import requests
 
-from config import EBAY_APP_ID, get_access_token
+from .config import EBAY_APP_ID, get_access_token
 
 BROWSE_SEARCH_URL = "https://api.ebay.com/buy/browse/v1/item_summary/search"
 
