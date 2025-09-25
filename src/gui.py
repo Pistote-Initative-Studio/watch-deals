@@ -1,36 +1,42 @@
+from typing import Optional
+
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from src import token_manager
 from src import ebay_api
 
 
-def _prompt_for_token(root: tk.Tk, on_success) -> None:
-    """Display a modal dialog requesting the user's eBay OAuth token."""
+session_token: Optional[str] = None
 
-    token_window = tk.Toplevel(root)
-    token_window.title("Enter eBay Token")
 
-    tk.Label(token_window, text="Paste your eBay OAuth Token:").pack(pady=10)
+def start_token_window() -> None:
+    """Launch the token entry window and transition to the main GUI."""
 
-    entry = tk.Entry(token_window, width=80)
-    entry.pack(pady=5)
+    token_window = tk.Tk()
+    token_window.title("Enter eBay OAuth Token")
 
-    def submit_token():
+    tk.Label(token_window, text="Enter eBay OAuth Token").pack(pady=(15, 5), padx=15)
+
+    entry = tk.Entry(token_window, width=60)
+    entry.pack(padx=15)
+    entry.focus_set()
+
+    def submit_token() -> None:
+        global session_token
         token = entry.get().strip()
         if not token:
             messagebox.showerror("Error", "Token cannot be empty")
             return
-        token_manager.set_token(token)
+        session_token = token
+        print("Token entered and saved")
         token_window.destroy()
-        on_success()
+        launch_main_window()
 
-    ttk.Button(token_window, text="Submit", command=submit_token).pack(pady=10)
+    ttk.Button(token_window, text="Submit", command=submit_token).pack(pady=15)
 
-    token_window.grab_set()              # make popup modal
-    token_window.transient(root)         # keep popup on top
     token_window.lift()
-    root.wait_window(token_window)
+    token_window.attributes("-topmost", True)
+    token_window.mainloop()
 
 
 def _build_main_window(root: tk.Tk) -> None:
@@ -81,6 +87,9 @@ def _build_main_window(root: tk.Tk) -> None:
     output.grid(row=10, column=0, columnspan=2, pady=10)
 
     def fetch_listings():
+        if not session_token:
+            messagebox.showerror("Error", "No token available. Please restart the application.")
+            return
         query = {
             "brand": brand_entry.get().strip(),
             "model": model_entry.get().strip(),
@@ -93,7 +102,7 @@ def _build_main_window(root: tk.Tk) -> None:
             "limit": results_entry.get().strip(),
         }
         try:
-            listings = ebay_api.fetch_listings(query)
+            listings = ebay_api.fetch_listings(query, session_token)
             output.delete(1.0, tk.END)
             if not listings:
                 output.insert(tk.END, "No listings found.\n")
@@ -107,16 +116,14 @@ def _build_main_window(root: tk.Tk) -> None:
     ttk.Button(root, text="Fetch Listings", command=fetch_listings).grid(row=9, column=0, columnspan=2, pady=10)
 
 
-def run():
+def launch_main_window() -> None:
     root = tk.Tk()
-    root.withdraw()  # hide until token entered
-
-    def launch_main():
-        root.deiconify()
-        _build_main_window(root)
-
-    _prompt_for_token(root, launch_main)
+    _build_main_window(root)
     root.mainloop()
+
+
+def run() -> None:
+    start_token_window()
 
 
 if __name__ == "__main__":
