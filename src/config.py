@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import threading
 import time
+import base64
 from typing import Dict, Tuple
 
 import requests
@@ -12,6 +13,9 @@ from dotenv import load_dotenv
 
 # Load environment variables from a .env file if present.
 load_dotenv()
+
+# eBay OAuth2 token endpoint (Production)
+TOKEN_URL = "https://api.ebay.com/identity/v1/oauth2/token"
 
 # --------------------------------------------------------------------------------------
 # Basic application configuration
@@ -43,21 +47,25 @@ _TOKEN_LOCK = threading.Lock()
 
 
 def _fetch_new_token(scope: str) -> Tuple[str, float]:
-    """Request a new OAuth access token from eBay for the given scope."""
-
     if not EBAY_CLIENT_ID or not EBAY_CLIENT_SECRET:
         raise EnvironmentError(
             "EBAY_CLIENT_ID and EBAY_CLIENT_SECRET environment variables must be set "
             "to request an OAuth access token."
         )
 
+    # Build Basic Auth header
+    basic_auth = base64.b64encode(f"{EBAY_CLIENT_ID}:{EBAY_CLIENT_SECRET}".encode()).decode()
+
     response = requests.post(
-        _TOKEN_URL,
-        auth=(EBAY_CLIENT_ID, EBAY_CLIENT_SECRET),
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
+        TOKEN_URL,
+        headers={
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Authorization": f"Basic {basic_auth}",
+        },
         data={"grant_type": "client_credentials", "scope": scope},
         timeout=10,
     )
+
     response.raise_for_status()
     payload = response.json()
 
@@ -70,24 +78,37 @@ def _fetch_new_token(scope: str) -> Tuple[str, float]:
     except (TypeError, ValueError):
         expires_in = 0
 
-    # Refresh the token a minute before the reported expiry to avoid edge cases
-    # with network latency or clock drift.
     expires_at = time.time() + max(expires_in - 60, 0)
     return token, expires_at
 
 
-def get_access_token(scope: str = _DEFAULT_SCOPE) -> str:
-    """Return a cached OAuth access token, refreshing it if necessary."""
 
-    with _TOKEN_LOCK:
-        cached = _TOKEN_CACHE.get(scope)
-        now = time.time()
-        if cached:
-            token, expires_at = cached
-            if now < expires_at:
-                return token
+def get_access_token():
+    """
+    Request an application access token using client_credentials grant.
+    """
+    import requests
+    from requests.auth import HTTPBasicAuth
 
-        token, expires_at = _fetch_new_token(scope)
-        _TOKEN_CACHE[scope] = (token, expires_at)
-        return token
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    data = {
+        "grant_type": "client_credentials",
+        "scope": "https://api.ebay.com/oauth/api_scope"
+    }
 
+    response = requests.post(
+        TOKEN_URL,
+        headers=headers,
+        data=data,
+        auth=HTTPBasicAuth(EBAY_CLIENT_ID, EBAY_CLIENT_SECRET),
+    )
+
+    try:
+        response.raise_for_status()
+        token_info = response.json()
+        return token_info["access_token"]
+    except Exception:
+        print("❌ Token request failed:")
+        print("Status code:", response.status_code)
+        print("Response body:", response.text)
+        raise
