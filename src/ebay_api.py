@@ -1,12 +1,17 @@
+from typing import Optional
+
 import requests
 from src import token_manager
 
 
-def fetch_listings(query: dict):
+def fetch_listings(query: dict, token: Optional[str] = None):
     url = "https://api.ebay.com/buy/browse/v1/item_summary/search"
 
+    if token is None:
+        token = token_manager.get_token()
+
     headers = {
-        "Authorization": f"Bearer {token_manager.get_token()}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
 
