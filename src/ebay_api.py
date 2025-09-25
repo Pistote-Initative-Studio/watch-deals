@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from .config import EBAY_BROWSE_SEARCH_URL
-from .token_manager import get_token
+from . import token_manager
 
 
 def _build_params(
@@ -68,7 +68,7 @@ def fetch_listings(
     future.
     """
 
-    token = get_token()
+    token = token_manager.get_token()
 
     headers = {
         "Authorization": f"Bearer {token}",
