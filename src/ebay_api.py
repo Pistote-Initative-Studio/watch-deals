@@ -1,10 +1,31 @@
-from typing import List, Optional
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Dict, List, Optional
 
 import requests
 from src import token_manager
 
 
-def fetch_listings(query: dict, token: Optional[str] = None):
+def fetch_listings(
+    query: Optional[dict] = None,
+    token: Optional[str] = None,
+    *,
+    keyword: Optional[str] = None,
+    limit: Optional[int] = None,
+):
+    if query is None:
+        query = {}
+    else:
+        # Avoid mutating the caller's dictionary when we inject CLI defaults.
+        query = dict(query)
+
+    if keyword and not query.get("search_query"):
+        query["search_query"] = keyword
+
+    if limit is not None and not query.get("limit"):
+        query["limit"] = str(limit)
+
     url = "https://api.ebay.com/buy/browse/v1/item_summary/search"
 
     if token is None:
@@ -80,11 +101,64 @@ def fetch_listings(query: dict, token: Optional[str] = None):
         raise RuntimeError(f"eBay API error {resp.status_code}: {resp.text}")
 
     data = resp.json()
-    items = []
+    items: List[Dict[str, str]] = []
     for item in data.get("itemSummaries", []):
         title = item.get("title", "No title")
-        price = item.get("price", {}).get("value", "N/A")
-        currency = item.get("price", {}).get("currency", "")
-        items.append(f"{title} - {price} {currency}")
+
+        price_info = item.get("price") or {}
+        price_value = price_info.get("value")
+        currency = price_info.get("currency")
+        if price_value is not None and currency:
+            price = f"{price_value} {currency}"
+        elif price_value is not None:
+            price = str(price_value)
+        else:
+            price = "N/A"
+
+        raw_end_date = item.get("itemEndDate")
+        time_left = "N/A"
+        if raw_end_date:
+            try:
+                end_dt = datetime.fromisoformat(raw_end_date.replace("Z", "+00:00"))
+                delta = end_dt - datetime.now(timezone.utc)
+                if delta.total_seconds() <= 0:
+                    time_left = "Ended"
+                else:
+                    days = delta.days
+                    hours, remainder = divmod(delta.seconds, 3600)
+                    minutes = remainder // 60
+                    parts = []
+                    if days:
+                        parts.append(f"{days}d")
+                    if hours:
+                        parts.append(f"{hours}h")
+                    if minutes:
+                        parts.append(f"{minutes}m")
+                    if not parts:
+                        parts.append("<1m")
+                    time_left = " ".join(parts)
+            except ValueError:
+                time_left = raw_end_date
+
+        seller_info = item.get("seller") or {}
+        seller_rating = seller_info.get("feedbackPercentage")
+        if seller_rating is None:
+            seller_rating = seller_info.get("feedbackScore")
+        seller_rating_str = str(seller_rating) if seller_rating is not None else "N/A"
+
+        item_id = item.get("itemId")
+        url = f"https://www.ebay.com/itm/{item_id}" if item_id else item.get("itemWebUrl", "")
+
+        items.append(
+            {
+                "title": title,
+                "price": price,
+                "condition": item.get("condition") or "N/A",
+                "time_left": time_left,
+                "seller_rating": seller_rating_str,
+                "url": url,
+                "item_id": item_id or "",
+            }
+        )
 
     return items
