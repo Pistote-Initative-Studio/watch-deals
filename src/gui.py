@@ -1,7 +1,9 @@
-from typing import Optional
+from typing import List, Optional
 
 import tkinter as tk
 from tkinter import ttk, messagebox
+
+from openpyxl import Workbook
 
 from src import ebay_api
 
@@ -94,7 +96,8 @@ def _build_main_window(root: tk.Tk) -> None:
 
     # Output box
     output = tk.Text(root, height=15, width=80)
-    output.grid(row=12, column=0, columnspan=2, pady=10)
+
+    results_data: List[dict] = []
 
     def fetch_listings():
         if not session_token:
@@ -115,6 +118,9 @@ def _build_main_window(root: tk.Tk) -> None:
         }
         try:
             listings = ebay_api.fetch_listings(query, session_token)
+            results_data.clear()
+            results_data.extend(listings)
+
             output.delete(1.0, tk.END)
             computed_query = query.get("computed_query")
             if computed_query:
@@ -124,15 +130,69 @@ def _build_main_window(root: tk.Tk) -> None:
             if not listings:
                 output.insert(tk.END, "No listings found.\n")
             else:
-                for item in listings:
-                    output.insert(tk.END, f"{item}\n")
+                preview = listings[:5]
+                if len(listings) > 5:
+                    output.insert(
+                        tk.END,
+                        f"Showing top 5 of {len(listings)} results. Use Export Results for the full list.\n\n",
+                    )
+                else:
+                    output.insert(tk.END, f"Showing {len(preview)} result(s).\n\n")
+
+                for idx, item in enumerate(preview, start=1):
+                    title = item.get("title", "No title")
+                    price = item.get("price", "N/A")
+                    output.insert(tk.END, f"{idx}. {title} - {price}\n")
         except Exception as e:
             output.delete(1.0, tk.END)
             output.insert(tk.END, f"Error: {e}\n")
 
+    def export_results():
+        if not results_data:
+            messagebox.showinfo("No Results", "No listings to export. Please fetch listings first.")
+            return
+
+        try:
+            workbook = Workbook()
+            sheet = workbook.active
+            sheet.title = "Results"
+
+            headers = ["Title", "Price", "Condition", "Time Left", "Seller Rating", "URL"]
+            sheet.append(headers)
+
+            for listing in results_data:
+                row = [
+                    listing.get("title", ""),
+                    listing.get("price", ""),
+                    listing.get("condition", ""),
+                    listing.get("time_left", ""),
+                    listing.get("seller_rating", ""),
+                    listing.get("url", ""),
+                ]
+                sheet.append(row)
+                url_cell = sheet.cell(row=sheet.max_row, column=6)
+                url_value = listing.get("url")
+                if url_value:
+                    url_cell.hyperlink = url_value
+                    url_cell.style = "Hyperlink"
+
+            workbook.save("results.xlsx")
+            messagebox.showinfo(
+                "Export Complete",
+                f"Exported {len(results_data)} listings to results.xlsx",
+            )
+        except Exception as exc:
+            messagebox.showerror(
+                "Export Failed", f"An error occurred while exporting results: {exc}"
+            )
+
     ttk.Button(root, text="Fetch Listings", command=fetch_listings).grid(
-        row=11, column=0, columnspan=2, pady=10
+        row=11, column=0, columnspan=2, pady=(10, 0)
     )
+    ttk.Button(root, text="Export Results", command=export_results).grid(
+        row=12, column=0, columnspan=2, pady=(10, 0)
+    )
+    output.grid(row=13, column=0, columnspan=2, pady=10)
 
 
 def launch_main_window() -> None:
