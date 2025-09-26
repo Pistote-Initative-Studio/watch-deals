@@ -1,4 +1,6 @@
-from typing import List, Optional
+import json
+from pathlib import Path
+from typing import List, Optional, Set
 
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -6,6 +8,58 @@ from tkinter import ttk, messagebox
 from openpyxl import Workbook
 
 from src import ebay_api
+
+
+SEEN_IDS_FILE = Path(__file__).resolve().parent / "seen_ids.json"
+
+
+def load_seen_ids() -> Set[str]:
+    """Load the set of seen eBay item IDs from disk."""
+
+    if not SEEN_IDS_FILE.exists():
+        return set()
+
+    try:
+        data = json.loads(SEEN_IDS_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return set()
+
+    if isinstance(data, list):
+        return {str(item_id) for item_id in data if str(item_id).strip()}
+
+    return set()
+
+
+def save_seen_ids(seen_ids: Set[str]) -> None:
+    """Persist the seen item IDs to disk."""
+
+    try:
+        SEEN_IDS_FILE.write_text(
+            json.dumps(sorted(seen_ids)), encoding="utf-8"
+        )
+    except OSError:
+        # Persisting seen IDs should not break the user experience if it fails.
+        pass
+
+
+def deduplicate_results(
+    results: List[dict], allow_seen: bool, seen_ids: Set[str]
+) -> List[dict]:
+    """Filter out results that have already been seen unless allowed."""
+
+    filtered_results: List[dict] = []
+
+    for listing in results:
+        item_id = str(listing.get("item_id") or "").strip()
+        already_seen = item_id in seen_ids if item_id else False
+
+        if allow_seen or not already_seen or not item_id:
+            filtered_results.append(listing)
+
+        if item_id:
+            seen_ids.add(item_id)
+
+    return filtered_results
 
 
 session_token: Optional[str] = None
@@ -94,6 +148,13 @@ def _build_main_window(root: tk.Tk) -> None:
     results_entry.insert(0, "20")
     results_entry.grid(row=10, column=1)
 
+    show_seen_var = tk.BooleanVar(value=False)
+    tk.Checkbutton(
+        root,
+        text="Show results you've seen before",
+        variable=show_seen_var,
+    ).grid(row=11, column=0, columnspan=2, sticky="w", pady=(5, 0))
+
     # Output box
     output = tk.Text(root, height=15, width=80)
 
@@ -118,8 +179,14 @@ def _build_main_window(root: tk.Tk) -> None:
         }
         try:
             listings = ebay_api.fetch_listings(query, session_token)
+
+            seen_ids = load_seen_ids()
+            allow_seen = show_seen_var.get()
+            filtered_listings = deduplicate_results(listings, allow_seen, seen_ids)
+            save_seen_ids(seen_ids)
+
             results_data.clear()
-            results_data.extend(listings)
+            results_data.extend(filtered_listings)
 
             output.delete(1.0, tk.END)
             computed_query = query.get("computed_query")
@@ -130,14 +197,23 @@ def _build_main_window(root: tk.Tk) -> None:
             if not listings:
                 output.insert(tk.END, "No listings found.\n")
             else:
-                preview = listings[:5]
-                if len(listings) > 5:
+                hidden_count = len(listings) - len(filtered_listings)
+                if hidden_count and not allow_seen:
                     output.insert(
                         tk.END,
-                        f"Showing top 5 of {len(listings)} results. Use Export Results for the full list.\n\n",
+                        f"{hidden_count} seen listing(s) hidden. Check the option above to view them.\n\n",
                     )
-                else:
+
+                preview = filtered_listings[:5]
+                if len(filtered_listings) > 5:
+                    output.insert(
+                        tk.END,
+                        f"Showing top 5 of {len(filtered_listings)} results. Use Export Results for the full list.\n\n",
+                    )
+                elif filtered_listings:
                     output.insert(tk.END, f"Showing {len(preview)} result(s).\n\n")
+                else:
+                    output.insert(tk.END, "No unseen listings found.\n")
 
                 for idx, item in enumerate(preview, start=1):
                     title = item.get("title", "No title")
@@ -187,12 +263,12 @@ def _build_main_window(root: tk.Tk) -> None:
             )
 
     ttk.Button(root, text="Fetch Listings", command=fetch_listings).grid(
-        row=11, column=0, columnspan=2, pady=(10, 0)
-    )
-    ttk.Button(root, text="Export Results", command=export_results).grid(
         row=12, column=0, columnspan=2, pady=(10, 0)
     )
-    output.grid(row=13, column=0, columnspan=2, pady=10)
+    ttk.Button(root, text="Export Results", command=export_results).grid(
+        row=13, column=0, columnspan=2, pady=(10, 0)
+    )
+    output.grid(row=14, column=0, columnspan=2, pady=10)
 
 
 def launch_main_window() -> None:
