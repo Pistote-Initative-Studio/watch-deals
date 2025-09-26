@@ -113,14 +113,15 @@ def fetch_listings(
     condition_input = (query.get("condition") or "").strip().lower()
     condition_id = condition_id_map.get(condition_input) if condition_input else None
     if condition_id:
-        filters.append(f"conditionIds:{{{condition_id}}}")
+        filters.append(f"conditionIds:{condition_id}")
 
     auction_only = bool(query.get("auction_only"))
     listing_type = (query.get("listing_type") or "").strip()
     if auction_only:
-        filters.append("listingType:{Auction}")
+        filters.append("buyingOptions:{AUCTION}")
     elif listing_type:
-        filters.append(f"listingType:{{{listing_type}}}")
+        normalized_listing = listing_type.replace(" ", "_").upper()
+        filters.append(f"buyingOptions:{{{normalized_listing}}}")
 
     if filters:
         params["filter"] = ",".join(filters)
@@ -178,9 +179,9 @@ def fetch_listings(
         if seller_rating is None:
             seller_rating = seller_info.get("feedbackScore")
         seller_rating_str = str(seller_rating) if seller_rating is not None else "N/A"
+        seller_username = seller_info.get("username") or "N/A"
 
-        item_id = item.get("itemId")
-        url = f"https://www.ebay.com/itm/{item_id}" if item_id else item.get("itemWebUrl", "")
+        url = item.get("itemWebUrl", "")
 
         items.append(
             {
@@ -189,8 +190,9 @@ def fetch_listings(
                 "condition": item.get("condition") or "N/A",
                 "time_left": time_left,
                 "seller_rating": seller_rating_str,
+                "seller": seller_username,
                 "url": url,
-                "item_id": item_id or "",
+                "item_id": item.get("itemId") or "",
             }
         )
 
