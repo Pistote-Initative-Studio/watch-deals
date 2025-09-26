@@ -45,58 +45,70 @@ def _build_main_window(root: tk.Tk) -> None:
     root.title("Watch Listings Fetcher")
 
     # Search fields
-    tk.Label(root, text="Brand").grid(row=0, column=0, sticky="w")
+    tk.Label(root, text="Search Query").grid(row=0, column=0, sticky="w")
+    search_query_entry = tk.Entry(root)
+    search_query_entry.grid(row=0, column=1)
+
+    tk.Label(root, text="Brand").grid(row=1, column=0, sticky="w")
     brand_entry = tk.Entry(root)
-    brand_entry.grid(row=0, column=1)
+    brand_entry.grid(row=1, column=1)
 
-    tk.Label(root, text="Model").grid(row=1, column=0, sticky="w")
+    tk.Label(root, text="Model").grid(row=2, column=0, sticky="w")
     model_entry = tk.Entry(root)
-    model_entry.grid(row=1, column=1)
+    model_entry.grid(row=2, column=1)
 
-    tk.Label(root, text="Min Price").grid(row=2, column=0, sticky="w")
+    tk.Label(root, text="Min Price").grid(row=3, column=0, sticky="w")
     min_price_entry = tk.Entry(root)
-    min_price_entry.grid(row=2, column=1)
+    min_price_entry.grid(row=3, column=1)
 
-    tk.Label(root, text="Max Price").grid(row=3, column=0, sticky="w")
+    tk.Label(root, text="Max Price").grid(row=4, column=0, sticky="w")
     max_price_entry = tk.Entry(root)
-    max_price_entry.grid(row=3, column=1)
+    max_price_entry.grid(row=4, column=1)
 
-    tk.Label(root, text="Condition").grid(row=4, column=0, sticky="w")
+    tk.Label(root, text="Condition").grid(row=5, column=0, sticky="w")
     condition_entry = tk.Entry(root)
-    condition_entry.grid(row=4, column=1)
+    condition_entry.grid(row=5, column=1)
 
-    tk.Label(root, text="Listing Type").grid(row=5, column=0, sticky="w")
+    tk.Label(root, text="Listing Type").grid(row=6, column=0, sticky="w")
     listing_type_entry = tk.Entry(root)
-    listing_type_entry.grid(row=5, column=1)
+    listing_type_entry.grid(row=6, column=1)
 
-    tk.Label(root, text="Max Time Left").grid(row=6, column=0, sticky="w")
+    tk.Label(root, text="Auction Only").grid(row=7, column=0, sticky="w")
+    auction_only_var = tk.BooleanVar(value=False)
+    tk.Checkbutton(root, text="Auction Only", variable=auction_only_var).grid(
+        row=7, column=1, sticky="w"
+    )
+
+    tk.Label(root, text="Max Time Left").grid(row=8, column=0, sticky="w")
     max_time_entry = tk.Entry(root)
-    max_time_entry.grid(row=6, column=1)
+    max_time_entry.grid(row=8, column=1)
 
-    tk.Label(root, text="Exclude Keywords").grid(row=7, column=0, sticky="w")
+    tk.Label(root, text="Exclude Keywords").grid(row=9, column=0, sticky="w")
     exclude_entry = tk.Entry(root)
-    exclude_entry.grid(row=7, column=1)
+    exclude_entry.grid(row=9, column=1)
 
-    tk.Label(root, text="Results").grid(row=8, column=0, sticky="w")
+    tk.Label(root, text="Results").grid(row=10, column=0, sticky="w")
     results_entry = tk.Entry(root)
     results_entry.insert(0, "20")
-    results_entry.grid(row=8, column=1)
+    results_entry.grid(row=10, column=1)
 
     # Output box
     output = tk.Text(root, height=15, width=80)
-    output.grid(row=10, column=0, columnspan=2, pady=10)
+    output.grid(row=12, column=0, columnspan=2, pady=10)
 
     def fetch_listings():
         if not session_token:
             messagebox.showerror("Error", "No token available. Please restart the application.")
             return
         query = {
+            "search_query": search_query_entry.get().strip(),
             "brand": brand_entry.get().strip(),
             "model": model_entry.get().strip(),
             "min_price": min_price_entry.get().strip(),
             "max_price": max_price_entry.get().strip(),
             "condition": condition_entry.get().strip(),
             "listing_type": listing_type_entry.get().strip(),
+            "auction_only": auction_only_var.get(),
             "max_time_left": max_time_entry.get().strip(),
             "exclude_keywords": exclude_entry.get().strip(),
             "limit": results_entry.get().strip(),
@@ -104,6 +116,11 @@ def _build_main_window(root: tk.Tk) -> None:
         try:
             listings = ebay_api.fetch_listings(query, session_token)
             output.delete(1.0, tk.END)
+            computed_query = query.get("computed_query")
+            if computed_query:
+                output.insert(tk.END, f"Search query: {computed_query}\n\n")
+            else:
+                output.insert(tk.END, "Search query: (none)\n\n")
             if not listings:
                 output.insert(tk.END, "No listings found.\n")
             else:
@@ -113,7 +130,9 @@ def _build_main_window(root: tk.Tk) -> None:
             output.delete(1.0, tk.END)
             output.insert(tk.END, f"Error: {e}\n")
 
-    ttk.Button(root, text="Fetch Listings", command=fetch_listings).grid(row=9, column=0, columnspan=2, pady=10)
+    ttk.Button(root, text="Fetch Listings", command=fetch_listings).grid(
+        row=11, column=0, columnspan=2, pady=10
+    )
 
 
 def launch_main_window() -> None:

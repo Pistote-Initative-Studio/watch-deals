@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 import requests
 from src import token_manager
@@ -16,19 +16,64 @@ def fetch_listings(query: dict, token: Optional[str] = None):
     }
 
     params = {}
-    if query.get("brand"):
-        params["q"] = query["brand"]
-    if query.get("model"):
-        params["q"] = params.get("q", "") + " " + query["model"]
-    if query.get("min_price"):
-        params["filter"] = f"price:[{query['min_price']}..]"
-    if query.get("max_price"):
-        if "filter" in params:
-            params["filter"] += f",price:[..{query['max_price']}]"
-        else:
-            params["filter"] = f"price:[..{query['max_price']}]"
-    if query.get("limit"):
-        params["limit"] = query["limit"]
+
+    def _clean_split(values: str) -> List[str]:
+        return [value.strip() for value in values.split(",") if value.strip()]
+
+    search_terms: List[str] = []
+    search_query = (query.get("search_query") or "").strip()
+    if search_query:
+        search_terms.append(search_query)
+
+    brand = (query.get("brand") or "").strip()
+    if brand:
+        search_terms.append(brand)
+
+    model = (query.get("model") or "").strip()
+    if model:
+        search_terms.append(model)
+
+    exclude_keywords = (query.get("exclude_keywords") or "").strip()
+    if exclude_keywords:
+        excluded_parts = [f'-"{kw}"' for kw in _clean_split(exclude_keywords)]
+    else:
+        excluded_parts = []
+
+    if search_terms or excluded_parts:
+        combined_query = " ".join(search_terms + excluded_parts).strip()
+        if combined_query:
+            params["q"] = combined_query
+            query["computed_query"] = combined_query
+    else:
+        query["computed_query"] = ""
+
+    filters: List[str] = []
+
+    min_price = (query.get("min_price") or "").strip()
+    if min_price:
+        filters.append(f"price:[{min_price}..]")
+
+    max_price = (query.get("max_price") or "").strip()
+    if max_price:
+        filters.append(f"price:[..{max_price}]")
+
+    condition = (query.get("condition") or "").strip()
+    if condition:
+        filters.append(f"conditions:{{{condition}}}")
+
+    auction_only = bool(query.get("auction_only"))
+    listing_type = (query.get("listing_type") or "").strip()
+    if auction_only:
+        filters.append("listingType:{Auction}")
+    elif listing_type:
+        filters.append(f"listingType:{{{listing_type}}}")
+
+    if filters:
+        params["filter"] = ",".join(filters)
+
+    limit = (query.get("limit") or "").strip()
+    if limit:
+        params["limit"] = limit
 
     resp = requests.get(url, headers=headers, params=params)
     if resp.status_code != 200:
