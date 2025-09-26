@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Dict, List, Optional
 
 import requests
@@ -38,6 +39,34 @@ def fetch_listings(
 
     params = {}
 
+    condition_id_map = {
+        "new": "1000",
+        "brand new": "1000",
+        "new other": "1500",
+        "new with defects": "1750",
+        "manufacturer refurbished": "2000",
+        "seller refurbished": "2010",
+        "like new": "2750",
+        "pre-owned": "3000",
+        "used": "3000",
+        "very good": "4000",
+        "good": "5000",
+        "fair": "6000",
+        "for parts": "7000",
+        "not working": "7000",
+        "parts": "7000",
+    }
+
+    def _normalize_price(value: str) -> Optional[str]:
+        try:
+            normalized = str(Decimal(value))
+        except (InvalidOperation, ValueError):
+            return None
+
+        if "." in normalized:
+            normalized = normalized.rstrip("0").rstrip(".")
+        return normalized
+
     def _clean_split(values: str) -> List[str]:
         return [value.strip() for value in values.split(",") if value.strip()]
 
@@ -70,17 +99,21 @@ def fetch_listings(
 
     filters: List[str] = []
 
-    min_price = (query.get("min_price") or "").strip()
-    if min_price:
-        filters.append(f"price:[{min_price}..]")
+    min_price_raw = (query.get("min_price") or "").strip()
+    min_price = _normalize_price(min_price_raw) if min_price_raw else None
 
-    max_price = (query.get("max_price") or "").strip()
-    if max_price:
-        filters.append(f"price:[..{max_price}]")
+    max_price_raw = (query.get("max_price") or "").strip()
+    max_price = _normalize_price(max_price_raw) if max_price_raw else None
 
-    condition = (query.get("condition") or "").strip()
-    if condition:
-        filters.append(f"conditions:{{{condition}}}")
+    if min_price is not None or max_price is not None:
+        min_part = min_price or ""
+        max_part = max_price or ""
+        filters.append(f"price:[{min_part}..{max_part}]")
+
+    condition_input = (query.get("condition") or "").strip().lower()
+    condition_id = condition_id_map.get(condition_input) if condition_input else None
+    if condition_id:
+        filters.append(f"conditionIds:{{{condition_id}}}")
 
     auction_only = bool(query.get("auction_only"))
     listing_type = (query.get("listing_type") or "").strip()
