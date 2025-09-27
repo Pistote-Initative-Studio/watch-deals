@@ -1,4 +1,6 @@
 import json
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Set
 
@@ -252,10 +254,15 @@ def _build_main_window(root: tk.Tk) -> None:
                     url_cell.hyperlink = url_value
                     url_cell.style = "Hyperlink"
 
-            workbook.save("results.xlsx")
+            desktop_path = Path(os.path.expanduser("~")) / "Desktop"
+            desktop_path.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            file_path = desktop_path / f"results_{timestamp}.xlsx"
+
+            workbook.save(file_path)
             messagebox.showinfo(
                 "Export Complete",
-                f"Exported {len(results_data)} listings to results.xlsx",
+                f"Exported {len(results_data)} listings to {file_path}",
             )
         except Exception as exc:
             messagebox.showerror(
